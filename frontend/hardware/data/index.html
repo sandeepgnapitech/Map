@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GPS Tracker Setup</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <style>
+        body {
+            font-family: Arial;
+            margin: 20px;
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 8px 0;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        button.primary {
+            background: #4CAF50;
+            color: white;
+            padding: 12px;
+            border: none;
+            width: 100%;
+            margin-top: 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button.primary:hover {
+            background: #45a049;
+        }
+        button.reset {
+            background: #dc3545;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+        button.reset:hover {
+            background: #c82333;
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        .help-text {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 4px;
+        }
+        .error {
+            color: #dc3545;
+            font-size: 0.9em;
+            margin-top: 4px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class='card'>
+        <h2>GPS Tracker Setup</h2>
+        <form method='POST' action='/save' onsubmit='return validateForm()'>
+            <div class='section'>
+                <b>WiFi Settings</b><br>
+                SSID:<br><input type='text' name='ssid' required><br>
+                <div class='error' id='ssidError'>Please enter WiFi SSID</div>
+                Password:<br><input type='password' name='password'><br>
+            </div>
+            
+            <div class='section'>
+                <b>Device Settings</b><br>
+                Device ID (UUID):<br>
+                <input type='text' name='deviceId' 
+                    pattern='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+                    title='Please enter a valid UUID'
+                    required>
+                <div class='error' id='deviceIdError'>Please enter a valid Device ID in UUID format</div>
+            </div>
+            
+            <div class='section'>
+                <b>GSM Settings</b><br>
+                <p class='help-text'>Contact your mobile provider for APN details</p>
+                APN:<br><input type='text' name='gsmApn' required><br>
+                <div class='error' id='apnError'>Please enter GSM APN</div>
+                Username (optional):<br><input type='text' name='gsmUser'><br>
+                Password (optional):<br><input type='password' name='gsmPass'>
+            </div>
+            
+            <button type='submit' class='primary'>Save Configuration</button>
+        </form>
+        
+        <div style='text-align:center;margin-top:20px'>
+            <button onclick='resetDevice()' class='reset'>Factory Reset</button>
+        </div>
+    </div>
+
+    <script>
+        function validateForm() {
+            var isValid = true;
+            
+            // Reset error messages
+            document.querySelectorAll('.error').forEach(el => el.style.display = 'none');
+            
+            // Validate SSID
+            var ssid = document.querySelector('[name=ssid]').value;
+            if (!ssid) {
+                document.getElementById('ssidError').style.display = 'block';
+                isValid = false;
+            }
+            
+            // Validate Device ID
+            var deviceId = document.querySelector('[name=deviceId]').value;
+            var uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (!uuidPattern.test(deviceId)) {
+                document.getElementById('deviceIdError').style.display = 'block';
+                isValid = false;
+            }
+            
+            // Validate APN
+            var apn = document.querySelector('[name=gsmApn]').value;
+            if (!apn) {
+                document.getElementById('apnError').style.display = 'block';
+                isValid = false;
+            }
+            
+            return isValid;
+        }
+
+        // Generate UUID on deviceId field focus if empty
+        document.querySelector('[name=deviceId]').addEventListener('focus', function() {
+            if (!this.value) {
+                this.value = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            }
+        });
+
+        function resetDevice() {
+            if (confirm('Are you sure you want to reset the device? All settings will be cleared.')) {
+                fetch('/reset', { method: 'POST' })
+                    .then(response => {
+                        if (!response.ok) throw new Error('Reset failed');
+                        alert('Device reset successful. The device will restart.');
+                        setTimeout(() => { window.location.reload(); }, 2000);
+                    })
+                    .catch(error => alert('Reset failed: ' + error));
+            }
+        }
+
+        // Add form submission feedback
+        document.querySelector('form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (validateForm()) {
+                const formData = new FormData(this);
+                fetch('/save', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) throw new Error('Failed to save configuration');
+                    return response.text();
+                })
+                .then(text => {
+                    alert(text);
+                    if (text.includes('successfully')) {
+                        setTimeout(() => { window.location.reload(); }, 2000);
+                    }
+                })
+                .catch(error => alert('Error: ' + error));
+            }
+        });
+    </script>
+</body>
+</html>
